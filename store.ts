@@ -246,6 +246,12 @@ export const useStore = create<AppState>((set, get) => ({
     
     if (!isTest && !isHost && (!currentRoom.players[0] || !currentRoom.players[1])) return;
 
+    // Inversão de cores sucessiva: troca a posição dos jogadores no array players ao iniciar revanche (REFORMA)
+    let players = [...currentRoom.players];
+    if (currentRoom.status === 'FINISHED') {
+      players = [players[1], players[0]];
+    }
+
     const initialBoard = createInitialBoard();
     const gameState: GameState = {
       board: initialBoard,
@@ -255,9 +261,10 @@ export const useStore = create<AppState>((set, get) => ({
       lastMoveTime: Date.now()
     };
 
-    const updatePayload: { status: RoomStatus; gameState: GameState } = {
+    const updatePayload: { status: RoomStatus; gameState: GameState; players: (Player | null)[] } = {
       status: 'PLAYING',
-      gameState: gameState
+      gameState: gameState,
+      players: players
     };
 
     if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
