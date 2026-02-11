@@ -8,6 +8,7 @@ interface AppState {
   currentUser: Player | null;
   currentRoom: Room | null;
   rooms: Room[];
+  rankings: Player[];
   setCurrentUser: (user: Player | null) => void;
   createRoom: (name: string, type: 'PUBLIC' | 'PRIVATE', settings: GameSettings) => void;
   joinRoom: (roomId: string, asSpectator?: boolean) => void;
@@ -18,6 +19,7 @@ interface AppState {
   updateUser: (data: Partial<Player>) => void;
   tickTimers: () => void;
   syncRooms: () => void;
+  syncRankings: () => void;
   subscribeToRoom: (roomId: string) => void;
 }
 
@@ -50,23 +52,76 @@ export const useStore = create<AppState>((set, get) => ({
   currentUser: null,
   currentRoom: null,
   rooms: initialRooms,
+  rankings: [],
 
-  setCurrentUser: (user) => set({ currentUser: user }),
+  setCurrentUser: async (user) => {
+    if (user && !user.id.startsWith('guest-')) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (profile) {
+        set({ currentUser: { ...user, ...profile } });
+        return;
+      } else {
+        // Criar perfil se não existir
+        const newProfile = {
+          id: user.id,
+          name: user.name,
+          rating: 1200,
+          wins: 0,
+          losses: 0,
+          draws: 0
+        };
+        await supabase.from('profiles').insert([newProfile]);
+        set({ currentUser: { ...user, ...newProfile } });
+        return;
+      }
+    }
+    set({ currentUser: user });
+  },
   
-  updateUser: (data) => {
+  updateUser: async (data) => {
     const user = get().currentUser;
-    if (user) set({ currentUser: { ...user, ...data } });
+    if (user) {
+      const updatedUser = { ...user, ...data };
+      set({ currentUser: updatedUser });
+      
+      if (!user.id.startsWith('guest-')) {
+        await supabase.from('profiles').update(data).eq('id', user.id);
+      }
+    }
   },
 
   syncRooms: async () => {
-    const { data } = await supabase.from('rooms').select('*').eq('status', 'WAITING');
-    if (data) set({ rooms: [...initialRooms, ...data] });
+    const { data } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('status', 'WAITING')
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      set({ rooms: [...(data as Room[]), ...initialRooms] });
+    }
+  },
+
+  syncRankings: async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('rating', { ascending: false })
+      .limit(50);
+    
+    if (data) {
+      set({ rankings: data as Player[] });
+    }
   },
 
   subscribeToRoom: (roomId: string) => {
     if (roomId === 'room-test' || roomId === 'room-1') return;
 
-    // Garante que não haja múltiplas subscrições
     supabase.channel(`room:${roomId}`).unsubscribe();
 
     supabase
@@ -77,7 +132,6 @@ export const useStore = create<AppState>((set, get) => ({
         table: 'rooms', 
         filter: `id=eq.${roomId}` 
       }, (payload) => {
-        // Atualiza apenas se o estado recebido for mais recente ou diferente
         set({ currentRoom: payload.new as Room });
       })
       .on('postgres_changes', { 
@@ -89,7 +143,6 @@ export const useStore = create<AppState>((set, get) => ({
         const newMessage = payload.new as ChatMessage;
         set(state => {
           if (!state.currentRoom) return state;
-          // Evita duplicados
           if (state.currentRoom.chat.some(m => m.id === newMessage.id)) return state;
           return {
             currentRoom: {
@@ -171,7 +224,7 @@ export const useStore = create<AppState>((set, get) => ({
       updatedRoom.players = updatedRoom.players.map(p => p?.id === currentUser.id ? null : p);
       updatedRoom.spectators = updatedRoom.spectators.filter(s => s.id !== currentUser.id);
       
-      if (updatedRoom.status === 'PLAYING' && updatedRoom.gameState) {
+      if (updatedRoom.status === 'PLAYING' && updatedRoom.gameState && !updatedRoom.gameState.winner) {
         const playerIndex = currentRoom.players.findIndex(p => p?.id === currentUser.id);
         updatedRoom.gameState.winner = playerIndex === 0 ? 'RED' : 'WHITE';
         updatedRoom.status = 'FINISHED';
@@ -202,7 +255,6 @@ export const useStore = create<AppState>((set, get) => ({
       lastMoveTime: Date.now()
     };
 
-    // Fixed: Explicitly type updatePayload to avoid 'string' being inferred for RoomStatus
     const updatePayload: { status: RoomStatus; gameState: GameState } = {
       status: 'PLAYING',
       gameState: gameState
@@ -251,11 +303,8 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const updatedRoom = { ...currentRoom, gameState: gs };
-    
-    // Atualização local imediata (Optimistic UI)
     set({ currentRoom: updatedRoom });
 
-    // Atualiza apenas o gameState no Supabase para evitar payload excessivo
     if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
       await supabase.from('rooms').update({ gameState: gs }).eq('id', currentRoom.id);
     }
@@ -274,7 +323,6 @@ export const useStore = create<AppState>((set, get) => ({
       if (gs.timers[turn] <= 0) {
         gs.timers[turn] = 0;
         gs.winner = turn === 'WHITE' ? 'RED' : 'WHITE';
-        // Fixed: Explicitly type 'updated' as Room to ensure status 'FINISHED' is compatible with RoomStatus
         const updated: Room = { ...currentRoom, status: 'FINISHED', gameState: gs };
         set({ currentRoom: updated });
         return;
