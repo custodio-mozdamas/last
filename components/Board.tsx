@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Piece, PieceColor, Move } from '../types';
-import { BOARD_SIZE, getLegalMoves, PotentialMove } from '../gameLogic';
+import { BOARD_SIZE, getLegalMoves } from '../gameLogic';
 
 interface BoardProps {
   board: (Piece | null)[][];
@@ -13,14 +13,12 @@ interface BoardProps {
 }
 
 export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, onMove, isSpectator }) => {
-  // Fix: Changed state property names to match Move interface expected by onMove callback
   const [selectedPiece, setSelectedPiece] = useState<{ row: number, col: number } | null>(null);
   
   const legalMovesForColor = useMemo(() => getLegalMoves(board, turn), [board, turn]);
 
   const possibleMovesForSelected = useMemo(() => {
     if (!selectedPiece) return [];
-    // Fix: Updated property access from .r/.c to .row/.col
     const found = legalMovesForColor.find(item => item.piece.row === selectedPiece.row && item.piece.col === selectedPiece.col);
     return found ? found.moves : [];
   }, [selectedPiece, legalMovesForColor]);
@@ -31,9 +29,7 @@ export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, o
 
     const piece = board[r][c];
     
-    // Select piece
     if (piece && piece.color === turn) {
-      // Fix: Updated property access from .r/.c to .row/.col
       if (selectedPiece?.row === r && selectedPiece?.col === c) {
         setSelectedPiece(null);
       } else {
@@ -42,11 +38,9 @@ export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, o
       return;
     }
 
-    // Execute move
     if (selectedPiece) {
       const move = possibleMovesForSelected.find(m => m.to.row === r && m.to.col === c);
       if (move) {
-        // Fix: Use new selectedPiece naming which matches the 'from' property requirements of Move
         onMove({
           pieceId: board[selectedPiece.row][selectedPiece.col]!.id,
           from: { ...selectedPiece },
@@ -60,19 +54,23 @@ export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, o
   };
 
   const getTileColor = (r: number, c: number) => {
-    const isDark = (r + c) % 2 === 0;
-    if (!isDark) return 'bg-slate-800/20'; // Non-playable light squares
+    // Casa jogável é (r+c) par para que a ponta direita inferior (7,7) seja escura/jogável
+    const isPlayable = (r + c) % 2 === 0;
 
     switch (theme) {
-      case 'DARK': return 'bg-slate-900';
-      case 'WOOD': return 'bg-[#4a2c1d]';
-      case 'GREEN': return 'bg-[#004d40]';
-      case 'MINIMAL': return 'bg-slate-950';
-      default: return 'bg-slate-900';
+      case 'WOOD': 
+        return isPlayable ? 'bg-[#3e2723]' : 'bg-[#d7ccc8]'; // Marrom Escuro vs Bege
+      case 'GREEN': 
+        return isPlayable ? 'bg-[#1b5e20]' : 'bg-[#a5d6a7]'; // Verde Escuro vs Verde Claro
+      case 'DARK': 
+        return isPlayable ? 'bg-[#020617]' : 'bg-[#1e293b]'; // Slate 950 vs Slate 800
+      case 'MINIMAL': 
+        return isPlayable ? 'bg-black' : 'bg-slate-700';    // Preto vs Cinza
+      default: 
+        return isPlayable ? 'bg-slate-950' : 'bg-slate-800';
     }
   };
 
-  // Flip board for RED player so they see their side at the bottom
   const renderRows = Array.from({ length: BOARD_SIZE }, (_, i) => i);
   const renderCols = Array.from({ length: BOARD_SIZE }, (_, i) => i);
 
@@ -86,7 +84,6 @@ export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, o
       <div className="grid grid-cols-8 grid-rows-8 h-full w-full">
         {renderRows.map(r => renderCols.map(c => {
           const piece = board[r][c];
-          // Fix: Updated property access from .r/.c to .row/.col
           const isSelected = selectedPiece?.row === r && selectedPiece?.col === c;
           const isPossibleTarget = possibleMovesForSelected.some(m => m.to.row === r && m.to.col === c);
           
@@ -96,12 +93,10 @@ export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, o
               onClick={() => handleTileClick(r, c)}
               className={`relative flex items-center justify-center cursor-pointer transition-all duration-200 ${getTileColor(r, c)}`}
             >
-              {/* Tile indicators */}
               {isPossibleTarget && (
                 <div className="absolute w-4 h-4 bg-blue-400/50 rounded-full animate-pulse z-10" />
               )}
               
-              {/* Piece */}
               {piece && (
                 <div 
                   className={`
@@ -116,7 +111,6 @@ export const Board: React.FC<BoardProps> = ({ board, turn, playerColor, theme, o
                         <div className="text-black/50 font-bold text-xs">K</div>
                     )}
                   </div>
-                  {/* Visual stacking effect */}
                   <div className="absolute -bottom-1 w-full h-full rounded-full bg-black/20 -z-10" />
                 </div>
               )}
