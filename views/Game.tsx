@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MoreVertical, Send, X, Flag, HelpCircle, MessageCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { MoreVertical, Send, X, Flag, HelpCircle, MessageCircle, ArrowLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useStore } from '../store';
 import { Board } from '../components/Board';
 import { PieceColor } from '../types';
 
 export const Game: React.FC = () => {
-  const { currentRoom, currentUser, leaveRoom, startGame, makeMove, sendMessage, tickTimers } = useStore();
+  const { currentRoom, currentUser, leaveRoom, startGame, toggleReady, makeMove, sendMessage, tickTimers } = useStore();
   const [showMenu, setShowMenu] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -20,13 +20,15 @@ export const Game: React.FC = () => {
   const isTestRoom = currentRoom.id === 'room-test';
   const isHost = currentRoom.hostId === currentUser.id;
   
-  // In test room, allow controlling both colors by setting playerColor to undefined
   const playerColor: PieceColor | undefined = isTestRoom ? undefined : (playerSeat === 0 ? 'WHITE' : playerSeat === 1 ? 'RED' : undefined);
 
   const player1 = currentRoom.players[0];
   const player2 = currentRoom.players[1];
 
-  // Timer heartbeat
+  const opponent = isHost ? player2 : player1;
+  const isSelfReady = currentRoom.readyPlayers?.includes(currentUser.id);
+  const isOpponentReady = opponent ? currentRoom.readyPlayers?.includes(opponent.id) : false;
+
   useEffect(() => {
     let interval: number | undefined;
     if (currentRoom.status === 'PLAYING' && !currentRoom.gameState?.winner) {
@@ -54,6 +56,58 @@ export const Game: React.FC = () => {
   const handleConfirmLeave = () => {
     leaveRoom();
     setShowExitConfirm(false);
+  };
+
+  const renderStartButton = () => {
+    if (isTestRoom) {
+      return (
+        <button onClick={startGame} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold neon-border transition-all">
+          INICIAR TESTE
+        </button>
+      );
+    }
+
+    if (isHost) {
+      if (!player2) {
+        return (
+          <button disabled className="bg-slate-800 text-slate-500 px-8 py-3 rounded-xl font-bold cursor-not-allowed border border-slate-700">
+            AGUARDANDO OPONENTE
+          </button>
+        );
+      }
+      
+      if (isOpponentReady) {
+        return (
+          <button onClick={startGame} className="bg-green-600 hover:bg-green-500 text-white px-8 py-3 rounded-xl font-bold shadow-[0_0_20px_rgba(34,197,94,0.4)] animate-pulse transition-all">
+            CONFIRMAR INÍCIO
+          </button>
+        );
+      } else {
+        return (
+          <button disabled className="bg-slate-800 text-slate-500 px-8 py-3 rounded-xl font-bold border border-slate-700 flex items-center gap-2">
+            AGUARDANDO OPONENTE FICAR PRONTO...
+          </button>
+        );
+      }
+    } else {
+      // Oponente (Player 2)
+      if (isSelfReady) {
+        return (
+          <div className="flex flex-col items-center gap-2">
+            <button onClick={toggleReady} className="bg-green-900/40 text-green-400 border border-green-500/50 px-8 py-3 rounded-xl font-bold flex items-center gap-2">
+              <CheckCircle2 size={18} /> VOCÊ ESTÁ PRONTO
+            </button>
+            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Aguardando Host iniciar</span>
+          </div>
+        );
+      } else {
+        return (
+          <button onClick={toggleReady} className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold neon-border transition-all">
+            ESTOU PRONTO
+          </button>
+        );
+      }
+    }
   };
 
   return (
@@ -99,11 +153,14 @@ export const Game: React.FC = () => {
       {/* Opponent Info */}
       <div className="w-full max-w-[500px] flex justify-between items-end mb-4 p-2 bg-slate-900/50 rounded-lg">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-sm">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm border-2 ${isOpponentReady ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'border-slate-700'} bg-red-600`}>
             {player2 ? player2.name[0] : '?'}
           </div>
           <div>
-            <p className="font-bold text-sm">{player2?.name || (isTestRoom ? 'Modo Solo' : 'Aguardando...')}</p>
+            <p className="font-bold text-sm flex items-center gap-2">
+                {player2?.name || (isTestRoom ? 'Modo Solo' : 'Aguardando...')}
+                {isOpponentReady && <CheckCircle2 size={12} className="text-green-500" />}
+            </p>
             <p className="text-[10px] text-slate-400">{player2?.rating || '---'} pts</p>
           </div>
         </div>
@@ -120,29 +177,10 @@ export const Game: React.FC = () => {
           <div className="flex flex-col items-center gap-6 p-8 bg-slate-900/80 rounded-2xl border border-blue-500/30 text-center backdrop-blur">
             <h3 className="text-xl font-bold">Pronto para começar?</h3>
             <p className="text-slate-400 text-sm">
-              {isHost ? 'Você é o dono da sala. Pode iniciar a partida agora.' : (isTestRoom ? 'Modo de teste: Você pode iniciar a partida sozinho.' : 'A partida iniciará assim que ambos os jogadores confirmarem.')}
+              {isHost ? 'Você é o dono da sala. Aguarde o oponente estar pronto para iniciar.' : (isTestRoom ? 'Modo de teste: Você pode iniciar sozinho.' : 'Clique em "Estou Pronto" para sinalizar ao Host.')}
             </p>
             <div className="flex gap-4">
-               {(player1 && player2) || isHost || isTestRoom ? (
-                   <button 
-                    onClick={startGame}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold neon-border transition-all"
-                   >
-                     INICIAR PARTIDA
-                   </button>
-               ) : (
-                   <div className="flex flex-col items-center gap-2">
-                       <div className="flex gap-2">
-                           <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${player1 ? 'border-green-500 bg-green-500/20' : 'border-slate-700 bg-slate-800 animate-pulse'}`}>
-                               {player1 ? '✓' : ''}
-                           </div>
-                           <div className={`w-12 h-12 rounded-full flex items-center justify-center border-2 ${player2 ? 'border-green-500 bg-green-500/20' : 'border-slate-700 bg-slate-800 animate-pulse'}`}>
-                               {player2 ? '✓' : ''}
-                           </div>
-                       </div>
-                       <span className="text-xs text-slate-500">Esperando oponente...</span>
-                   </div>
-               )}
+               {renderStartButton()}
             </div>
           </div>
         ) : (
@@ -160,11 +198,14 @@ export const Game: React.FC = () => {
       {/* Self Info */}
       <div className="w-full max-w-[500px] flex justify-between items-start mt-4 p-2 bg-slate-900/50 rounded-lg">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-900 font-bold text-sm">
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-slate-900 font-bold text-sm border-2 ${isSelfReady ? 'border-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'border-slate-700'} bg-slate-200`}>
             {player1?.name[0] || '?'}
           </div>
           <div>
-            <p className="font-bold text-sm">{player1?.name || 'Seu lugar'}</p>
+            <p className="font-bold text-sm flex items-center gap-2">
+                {player1?.name || 'Seu lugar'}
+                {isSelfReady && <CheckCircle2 size={12} className="text-green-500" />}
+            </p>
             <p className="text-[10px] text-slate-400">{player1?.rating || '---'} pts</p>
           </div>
         </div>
