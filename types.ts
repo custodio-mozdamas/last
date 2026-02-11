@@ -37,7 +37,6 @@ export interface Room {
   gameState?: GameState;
   chat: ChatMessage[];
   created_at?: string;
-  drawOfferFrom?: string;
 }
 
 export interface GameSettings {
