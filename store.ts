@@ -170,11 +170,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   startGame: async () => {
-    const { currentRoom } = get();
-    if (!currentRoom) return;
+    const { currentRoom, currentUser } = get();
+    if (!currentRoom || !currentUser) return;
     
     const isTest = currentRoom.id === 'room-test';
-    if (!isTest && (!currentRoom.players[0] || !currentRoom.players[1])) return;
+    const isHost = currentRoom.hostId === currentUser.id;
+    
+    // Permitir início se for sala de teste, se for o host ou se ambos os jogadores estiverem presentes
+    if (!isTest && !isHost && (!currentRoom.players[0] || !currentRoom.players[1])) return;
 
     const initialBoard = createInitialBoard();
     const gameState = {
