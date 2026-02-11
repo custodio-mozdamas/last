@@ -21,9 +21,6 @@ interface AppState {
   syncRooms: () => void;
   syncRankings: () => void;
   subscribeToRoom: (roomId: string) => void;
-  proposeDraw: () => void;
-  acceptDraw: () => void;
-  rejectDraw: () => void;
 }
 
 const initialRooms: Room[] = [
@@ -69,6 +66,7 @@ export const useStore = create<AppState>((set, get) => ({
         set({ currentUser: { ...user, ...profile } });
         return;
       } else {
+        // Criar perfil se não existir
         const newProfile = {
           id: user.id,
           name: user.name,
@@ -316,6 +314,7 @@ export const useStore = create<AppState>((set, get) => ({
     const { currentRoom } = get();
     if (!currentRoom || currentRoom.status !== 'PLAYING' || !currentRoom.gameState) return;
 
+    // Apenas decrementa o tempo se pelo menos uma jogada foi realizada
     if (currentRoom.gameState.history.length === 0) return;
 
     const gs = { ...currentRoom.gameState };
@@ -359,50 +358,6 @@ export const useStore = create<AppState>((set, get) => ({
       }]);
     } else {
       set({ currentRoom: { ...currentRoom, chat: [...currentRoom.chat, msg] } });
-    }
-  },
-
-  proposeDraw: async () => {
-    const { currentRoom, currentUser } = get();
-    if (!currentRoom || !currentUser || currentRoom.status !== 'PLAYING') return;
-
-    if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
-      await supabase.from('rooms').update({ drawOfferFrom: currentUser.id }).eq('id', currentRoom.id);
-    } else {
-      set({ currentRoom: { ...currentRoom, drawOfferFrom: currentUser.id } });
-    }
-  },
-
-  acceptDraw: async () => {
-    const { currentRoom, currentUser } = get();
-    if (!currentRoom || !currentUser || !currentRoom.drawOfferFrom || !currentRoom.gameState) return;
-
-    const gs = { ...currentRoom.gameState, winner: 'DRAW' as PieceColor | 'DRAW' };
-    const updatedRoom: Partial<Room> = { 
-      status: 'FINISHED', 
-      gameState: gs,
-      drawOfferFrom: undefined 
-    };
-
-    if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
-      await supabase.from('rooms').update({ 
-        status: 'FINISHED', 
-        gameState: gs,
-        drawOfferFrom: null 
-      }).eq('id', currentRoom.id);
-    } else {
-      set({ currentRoom: { ...currentRoom, ...updatedRoom } as Room });
-    }
-  },
-
-  rejectDraw: async () => {
-    const { currentRoom, currentUser } = get();
-    if (!currentRoom || !currentUser || !currentRoom.drawOfferFrom) return;
-
-    if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
-      await supabase.from('rooms').update({ drawOfferFrom: null }).eq('id', currentRoom.id);
-    } else {
-      set({ currentRoom: { ...currentRoom, drawOfferFrom: undefined } });
     }
   }
 }));
