@@ -12,11 +12,14 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
 
   if (!currentUser) return null;
 
+  const totalGames = (currentUser.wins || 0) + (currentUser.losses || 0) + (currentUser.draws || 0);
+  const accuracy = totalGames > 0 ? Math.round(((currentUser.wins || 0) / totalGames) * 100) : 0;
+
   const stats = [
-    { label: 'Vitórias', value: 124, icon: <Target size={18} className="text-green-500" /> },
-    { label: 'Derrotas', value: 52, icon: <X size={18} className="text-red-500" /> },
-    { label: 'Empates', value: 18, icon: <History size={18} className="text-blue-500" /> },
-    { label: 'Precisão', value: '82%', icon: <ShieldCheck size={18} className="text-amber-500" /> },
+    { label: 'Vitórias', value: currentUser.wins || 0, icon: <Target size={18} className="text-green-500" /> },
+    { label: 'Derrotas', value: currentUser.losses || 0, icon: <X size={18} className="text-red-500" /> },
+    { label: 'Empates', value: currentUser.draws || 0, icon: <History size={18} className="text-blue-500" /> },
+    { label: 'Precisão', value: `${accuracy}%`, icon: <ShieldCheck size={18} className="text-amber-500" /> },
   ];
 
   return (
@@ -81,18 +84,11 @@ export const Profile: React.FC<ProfileProps> = ({ onBack }) => {
         </h3>
         
         <div className="space-y-2">
-           {[1, 2, 3].map(i => (
-               <div key={i} className="bg-slate-900/50 border border-slate-800/50 rounded-xl p-4 flex items-center justify-between">
-                   <div className="flex items-center gap-3">
-                       <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                       <div>
-                           <p className="text-sm font-bold">Contra ChessMaster_XY</p>
-                           <p className="text-[10px] text-slate-500">Há 2 horas • +15 pts</p>
-                       </div>
-                   </div>
-                   <span className="text-xs font-bold text-green-400 uppercase">Vitória</span>
-               </div>
-           ))}
+           {totalGames === 0 ? (
+               <p className="text-center text-slate-500 py-4 text-sm uppercase tracking-widest font-bold">Nenhuma partida registrada</p>
+           ) : (
+               <p className="text-center text-slate-500 py-4 text-xs font-bold text-blue-500/50">Histórico detalhado em breve</p>
+           )}
         </div>
       </div>
 
