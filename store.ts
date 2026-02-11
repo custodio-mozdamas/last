@@ -14,6 +14,7 @@ interface AppState {
   joinRoom: (roomId: string, asSpectator?: boolean) => void;
   leaveRoom: () => void;
   startGame: () => void;
+  toggleReady: () => void;
   makeMove: (move: Move) => void;
   sendMessage: (text: string) => void;
   updateUser: (data: Partial<Player>) => void;
@@ -33,7 +34,8 @@ const initialRooms: Room[] = [
     players: [null, null],
     spectators: [],
     settings: { timeLimit: 5, increment: 2, theme: 'DARK' },
-    chat: []
+    chat: [],
+    readyPlayers: []
   },
   {
     id: 'room-test',
@@ -44,7 +46,8 @@ const initialRooms: Room[] = [
     players: [null, null],
     spectators: [],
     settings: { timeLimit: 10, increment: 5, theme: 'MINIMAL' },
-    chat: []
+    chat: [],
+    readyPlayers: []
   }
 ];
 
@@ -66,7 +69,6 @@ export const useStore = create<AppState>((set, get) => ({
         set({ currentUser: { ...user, ...profile } });
         return;
       } else {
-        // Criar perfil se não existir
         const newProfile = {
           id: user.id,
           name: user.name,
@@ -169,7 +171,8 @@ export const useStore = create<AppState>((set, get) => ({
       players: [user, null],
       spectators: [],
       settings,
-      chat: []
+      chat: [],
+      readyPlayers: []
     };
 
     await supabase.from('rooms').insert([newRoom]);
@@ -224,6 +227,11 @@ export const useStore = create<AppState>((set, get) => ({
       updatedRoom.players = updatedRoom.players.map(p => p?.id === currentUser.id ? null : p);
       updatedRoom.spectators = updatedRoom.spectators.filter(s => s.id !== currentUser.id);
       
+      // Se houver prontidão, remover o jogador que saiu
+      if (updatedRoom.readyPlayers) {
+        updatedRoom.readyPlayers = updatedRoom.readyPlayers.filter(id => id !== currentUser.id);
+      }
+
       if (updatedRoom.status === 'PLAYING' && updatedRoom.gameState && !updatedRoom.gameState.winner) {
         const playerIndex = currentRoom.players.findIndex(p => p?.id === currentUser.id);
         updatedRoom.gameState.winner = playerIndex === 0 ? 'RED' : 'WHITE';
@@ -237,6 +245,22 @@ export const useStore = create<AppState>((set, get) => ({
     set({ currentRoom: null });
   },
 
+  toggleReady: async () => {
+    const { currentRoom, currentUser } = get();
+    if (!currentRoom || !currentUser) return;
+
+    const isReady = currentRoom.readyPlayers?.includes(currentUser.id);
+    const newReadyPlayers = isReady 
+      ? currentRoom.readyPlayers?.filter(id => id !== currentUser.id)
+      : [...(currentRoom.readyPlayers || []), currentUser.id];
+
+    if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
+      await supabase.from('rooms').update({ readyPlayers: newReadyPlayers }).eq('id', currentRoom.id);
+    } else {
+      set({ currentRoom: { ...currentRoom, readyPlayers: newReadyPlayers } });
+    }
+  },
+
   startGame: async () => {
     const { currentRoom, currentUser } = get();
     if (!currentRoom || !currentUser) return;
@@ -244,7 +268,8 @@ export const useStore = create<AppState>((set, get) => ({
     const isTest = currentRoom.id === 'room-test';
     const isHost = currentRoom.hostId === currentUser.id;
     
-    if (!isTest && !isHost && (!currentRoom.players[0] || !currentRoom.players[1])) return;
+    // Regra: Somente o Host pode iniciar a partida oficialmente.
+    if (!isTest && !isHost) return;
 
     const initialBoard = createInitialBoard();
     const gameState: GameState = {
