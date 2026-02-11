@@ -18,6 +18,7 @@ export const Game: React.FC = () => {
   const playerSeat = currentRoom.players.findIndex(p => p?.id === currentUser.id);
   const isSpectator = playerSeat === -1;
   const isTestRoom = currentRoom.id === 'room-test';
+  const isHost = currentRoom.hostId === currentUser.id;
   
   // In test room, allow controlling both colors by setting playerColor to undefined
   const playerColor: PieceColor | undefined = isTestRoom ? undefined : (playerSeat === 0 ? 'WHITE' : playerSeat === 1 ? 'RED' : undefined);
@@ -119,10 +120,10 @@ export const Game: React.FC = () => {
           <div className="flex flex-col items-center gap-6 p-8 bg-slate-900/80 rounded-2xl border border-blue-500/30 text-center backdrop-blur">
             <h3 className="text-xl font-bold">Pronto para começar?</h3>
             <p className="text-slate-400 text-sm">
-              {isTestRoom ? 'Modo de teste: Você pode iniciar a partida sozinho.' : 'A partida iniciará assim que ambos os jogadores confirmarem.'}
+              {isHost ? 'Você é o dono da sala. Pode iniciar a partida agora.' : (isTestRoom ? 'Modo de teste: Você pode iniciar a partida sozinho.' : 'A partida iniciará assim que ambos os jogadores confirmarem.')}
             </p>
             <div className="flex gap-4">
-               {(player1 && player2) || isTestRoom ? (
+               {(player1 && player2) || isHost || isTestRoom ? (
                    <button 
                     onClick={startGame}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-xl font-bold neon-border transition-all"
