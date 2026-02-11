@@ -17,6 +17,9 @@ export interface Player {
   avatar?: string;
   isOnline: boolean;
   seat?: 1 | 2;
+  wins?: number;
+  losses?: number;
+  draws?: number;
 }
 
 export type RoomStatus = 'WAITING' | 'PLAYING' | 'FINISHED';
@@ -33,6 +36,7 @@ export interface Room {
   settings: GameSettings;
   gameState?: GameState;
   chat: ChatMessage[];
+  created_at?: string;
 }
 
 export interface GameSettings {
