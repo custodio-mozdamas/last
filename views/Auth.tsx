@@ -31,7 +31,7 @@ export const Auth: React.FC = () => {
         if (signUpError) throw signUpError;
         
         if (data.user) {
-          setCurrentUser({
+          await setCurrentUser({
             id: data.user.id,
             name: name || 'Novo Jogador',
             rating: 1200,
@@ -47,7 +47,7 @@ export const Auth: React.FC = () => {
         if (signInError) throw signInError;
 
         if (data.user) {
-          setCurrentUser({
+          await setCurrentUser({
             id: data.user.id,
             name: data.user.user_metadata.display_name || 'Jogador',
             rating: 1200,
