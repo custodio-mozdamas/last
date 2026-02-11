@@ -103,7 +103,9 @@ export const useStore = create<AppState>((set, get) => ({
       .order('created_at', { ascending: false });
 
     if (data) {
-      set({ rooms: [...(data as Room[]), ...initialRooms] });
+      // Filtra salas que por ventura estejam vazias no banco antes de exibir no lobby
+      const activeRooms = (data as Room[]).filter(r => r.players.some(p => p !== null));
+      set({ rooms: [...activeRooms, ...initialRooms] });
     }
   },
 
@@ -230,7 +232,17 @@ export const useStore = create<AppState>((set, get) => ({
         updatedRoom.status = 'FINISHED';
       }
 
-      await supabase.from('rooms').update(updatedRoom).eq('id', currentRoom.id);
+      // Verifica se a sala ficou vazia após a saída
+      const isRoomEmpty = updatedRoom.players.every(p => p === null);
+
+      if (isRoomEmpty) {
+        // Remove a sala permanentemente do banco se estiver vazia
+        await supabase.from('rooms').delete().eq('id', currentRoom.id);
+      } else {
+        // Caso contrário, apenas atualiza o estado
+        await supabase.from('rooms').update(updatedRoom).eq('id', currentRoom.id);
+      }
+      
       supabase.removeAllChannels();
     }
     
