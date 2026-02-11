@@ -1,7 +1,0 @@
-{
-  "name": "Master Damas Online",
-  "description": "A professional-grade, real-time multiplayer 8x8 Checkers game with competitive ranking, tournament-ready features, and neon-blue styling.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
