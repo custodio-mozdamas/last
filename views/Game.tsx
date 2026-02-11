@@ -6,19 +6,7 @@ import { Board } from '../components/Board';
 import { PieceColor } from '../types';
 
 export const Game: React.FC = () => {
-  const { 
-    currentRoom, 
-    currentUser, 
-    leaveRoom, 
-    startGame, 
-    makeMove, 
-    sendMessage, 
-    tickTimers,
-    proposeDraw,
-    acceptDraw,
-    rejectDraw
-  } = useStore();
-  
+  const { currentRoom, currentUser, leaveRoom, startGame, makeMove, sendMessage, tickTimers } = useStore();
   const [showMenu, setShowMenu] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
@@ -32,11 +20,13 @@ export const Game: React.FC = () => {
   const isTestRoom = currentRoom.id === 'room-test';
   const isHost = currentRoom.hostId === currentUser.id;
   
+  // In test room, allow controlling both colors by setting playerColor to undefined
   const playerColor: PieceColor | undefined = isTestRoom ? undefined : (playerSeat === 0 ? 'WHITE' : playerSeat === 1 ? 'RED' : undefined);
 
   const player1 = currentRoom.players[0];
   const player2 = currentRoom.players[1];
 
+  // Timer heartbeat
   useEffect(() => {
     let interval: number | undefined;
     if (currentRoom.status === 'PLAYING' && !currentRoom.gameState?.winner) {
@@ -67,8 +57,6 @@ export const Game: React.FC = () => {
   };
 
   const isGameInMotion = (currentRoom.gameState?.history.length || 0) > 0;
-  const hasDrawOffer = !!currentRoom.drawOfferFrom;
-  const isMyOffer = currentRoom.drawOfferFrom === currentUser.id;
 
   return (
     <div className="fixed inset-0 bg-slate-950 flex flex-col items-center p-4 overflow-hidden">
@@ -98,11 +86,7 @@ export const Game: React.FC = () => {
               >
                 <Flag size={14} className="text-red-500" /> Desistir
               </button>
-              <button 
-                onClick={() => { proposeDraw(); setShowMenu(false); }}
-                disabled={hasDrawOffer}
-                className={`w-full text-left p-2 hover:bg-slate-800 rounded flex items-center gap-2 text-sm ${hasDrawOffer ? 'opacity-50 grayscale' : ''}`}
-              >
+              <button className="w-full text-left p-2 hover:bg-slate-800 rounded flex items-center gap-2 text-sm">
                 <HelpCircle size={14} className="text-blue-500" /> Propor Empate
               </button>
               <div className="border-t border-slate-800 my-1" />
@@ -133,7 +117,7 @@ export const Game: React.FC = () => {
       </div>
 
       {/* Board Area */}
-      <div className="flex-1 flex items-center justify-center w-full max-w-[500px] relative">
+      <div className="flex-1 flex items-center justify-center w-full max-w-[500px]">
         {currentRoom.status === 'WAITING' ? (
           <div className="flex flex-col items-center gap-6 p-8 bg-slate-900/80 rounded-2xl border border-blue-500/30 text-center backdrop-blur">
             <h3 className="text-xl font-bold">Pronto para começar?</h3>
@@ -164,40 +148,14 @@ export const Game: React.FC = () => {
             </div>
           </div>
         ) : (
-          <>
-            <Board 
-              board={currentRoom.gameState!.board}
-              turn={currentRoom.gameState!.turn}
-              playerColor={playerColor}
-              theme={currentRoom.settings.theme}
-              onMove={makeMove}
-              isSpectator={isSpectator}
-            />
-            
-            {/* Draw Offer Overlay */}
-            {hasDrawOffer && (
-              <div className="absolute inset-0 z-[120] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                <div className="bg-slate-900 border border-blue-500/50 p-6 rounded-2xl shadow-2xl max-w-[280px] text-center">
-                   {isMyOffer ? (
-                     <>
-                       <p className="text-blue-400 font-bold mb-4">Empate proposto...</p>
-                       <p className="text-xs text-slate-400 mb-6">Aguardando resposta do adversário.</p>
-                       <button onClick={rejectDraw} className="w-full bg-slate-800 py-2 rounded-lg text-xs font-bold hover:bg-slate-700">CANCELAR PEDIDO</button>
-                     </>
-                   ) : (
-                     <>
-                       <p className="text-blue-400 font-bold mb-4">Oponente propôs empate!</p>
-                       <p className="text-xs text-slate-400 mb-6">Deseja encerrar a partida agora?</p>
-                       <div className="flex gap-3">
-                          <button onClick={rejectDraw} className="flex-1 bg-slate-800 py-2 rounded-lg text-xs font-bold hover:bg-slate-700">RECUSAR</button>
-                          <button onClick={acceptDraw} className="flex-1 bg-blue-600 py-2 rounded-lg text-xs font-bold hover:bg-blue-500 shadow-lg shadow-blue-500/20">ACEITAR</button>
-                       </div>
-                     </>
-                   )}
-                </div>
-              </div>
-            )}
-          </>
+          <Board 
+            board={currentRoom.gameState!.board}
+            turn={currentRoom.gameState!.turn}
+            playerColor={playerColor}
+            theme={currentRoom.settings.theme}
+            onMove={makeMove}
+            isSpectator={isSpectator}
+          />
         )}
       </div>
 
