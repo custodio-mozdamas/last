@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { Player, Room, GameSettings, PieceColor, Piece, Move, ChatMessage } from './types';
+import { Player, Room, GameSettings, PieceColor, Piece, Move, ChatMessage, RoomStatus, GameState } from './types';
 import { createInitialBoard, getLegalMoves } from './gameLogic';
 import { supabase } from './lib/supabase';
 
@@ -47,7 +47,6 @@ const initialRooms: Room[] = [
 ];
 
 export const useStore = create<AppState>((set, get) => ({
-  // Alterado para null para permitir o fluxo de login
   currentUser: null,
   currentRoom: null,
   rooms: initialRooms,
@@ -67,15 +66,31 @@ export const useStore = create<AppState>((set, get) => ({
   subscribeToRoom: (roomId: string) => {
     if (roomId === 'room-test' || roomId === 'room-1') return;
 
+    // Garante que não haja múltiplas subscrições
+    supabase.channel(`room:${roomId}`).unsubscribe();
+
     supabase
       .channel(`room:${roomId}`)
-      .on('postgres_changes', { event: 'UPDATE', table: 'rooms', filter: `id=eq.${roomId}` }, (payload) => {
+      .on('postgres_changes', { 
+        event: 'UPDATE', 
+        schema: 'public', 
+        table: 'rooms', 
+        filter: `id=eq.${roomId}` 
+      }, (payload) => {
+        // Atualiza apenas se o estado recebido for mais recente ou diferente
         set({ currentRoom: payload.new as Room });
       })
-      .on('postgres_changes', { event: 'INSERT', table: 'chat_messages', filter: `room_id=eq.${roomId}` }, (payload) => {
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'chat_messages', 
+        filter: `room_id=eq.${roomId}` 
+      }, (payload) => {
         const newMessage = payload.new as ChatMessage;
         set(state => {
           if (!state.currentRoom) return state;
+          // Evita duplicados
+          if (state.currentRoom.chat.some(m => m.id === newMessage.id)) return state;
           return {
             currentRoom: {
               ...state.currentRoom,
@@ -138,7 +153,7 @@ export const useStore = create<AppState>((set, get) => ({
     } else {
       const newPlayers = [...updatedRoom.players];
       if (!newPlayers[0]) newPlayers[0] = user;
-      else if (!newPlayers[1]) newPlayers[1] = user;
+      else if (!newPlayers[1] && newPlayers[0].id !== user.id) newPlayers[1] = user;
       updatedRoom.players = newPlayers;
     }
 
@@ -176,11 +191,10 @@ export const useStore = create<AppState>((set, get) => ({
     const isTest = currentRoom.id === 'room-test';
     const isHost = currentRoom.hostId === currentUser.id;
     
-    // Permitir início se for sala de teste, se for o host ou se ambos os jogadores estiverem presentes
     if (!isTest && !isHost && (!currentRoom.players[0] || !currentRoom.players[1])) return;
 
     const initialBoard = createInitialBoard();
-    const gameState = {
+    const gameState: GameState = {
       board: initialBoard,
       turn: 'WHITE' as PieceColor,
       timers: { WHITE: currentRoom.settings.timeLimit * 60, RED: currentRoom.settings.timeLimit * 60 },
@@ -188,13 +202,17 @@ export const useStore = create<AppState>((set, get) => ({
       lastMoveTime: Date.now()
     };
 
-    const updatedRoom = { ...currentRoom, status: 'PLAYING', gameState };
+    // Fixed: Explicitly type updatePayload to avoid 'string' being inferred for RoomStatus
+    const updatePayload: { status: RoomStatus; gameState: GameState } = {
+      status: 'PLAYING',
+      gameState: gameState
+    };
 
     if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
-      await supabase.from('rooms').update(updatedRoom).eq('id', currentRoom.id);
+      await supabase.from('rooms').update(updatePayload).eq('id', currentRoom.id);
     }
 
-    set({ currentRoom: updatedRoom });
+    set({ currentRoom: { ...currentRoom, ...updatePayload } });
   },
 
   makeMove: async (move) => {
@@ -233,10 +251,14 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const updatedRoom = { ...currentRoom, gameState: gs };
-    if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
-      await supabase.from('rooms').update(updatedRoom).eq('id', currentRoom.id);
-    }
+    
+    // Atualização local imediata (Optimistic UI)
     set({ currentRoom: updatedRoom });
+
+    // Atualiza apenas o gameState no Supabase para evitar payload excessivo
+    if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
+      await supabase.from('rooms').update({ gameState: gs }).eq('id', currentRoom.id);
+    }
   },
 
   tickTimers: () => {
@@ -252,7 +274,8 @@ export const useStore = create<AppState>((set, get) => ({
       if (gs.timers[turn] <= 0) {
         gs.timers[turn] = 0;
         gs.winner = turn === 'WHITE' ? 'RED' : 'WHITE';
-        const updated = { ...currentRoom, status: 'FINISHED', gameState: gs };
+        // Fixed: Explicitly type 'updated' as Room to ensure status 'FINISHED' is compatible with RoomStatus
+        const updated: Room = { ...currentRoom, status: 'FINISHED', gameState: gs };
         set({ currentRoom: updated });
         return;
       }
@@ -274,7 +297,14 @@ export const useStore = create<AppState>((set, get) => ({
     };
 
     if (currentRoom.id !== 'room-test' && currentRoom.id !== 'room-1') {
-      await supabase.from('chat_messages').insert([{ ...msg, room_id: currentRoom.id }]);
+      await supabase.from('chat_messages').insert([{ 
+        id: msg.id,
+        room_id: currentRoom.id,
+        senderId: msg.senderId,
+        senderName: msg.senderName,
+        text: msg.text,
+        timestamp: msg.timestamp
+      }]);
     } else {
       set({ currentRoom: { ...currentRoom, chat: [...currentRoom.chat, msg] } });
     }
