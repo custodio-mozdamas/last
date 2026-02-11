@@ -37,6 +37,7 @@ export interface Room {
   gameState?: GameState;
   chat: ChatMessage[];
   created_at?: string;
+  readyPlayers?: string[]; // IDs dos jogadores que clicaram em "Pronto"
 }
 
 export interface GameSettings {
