@@ -37,6 +37,7 @@ export interface Room {
   gameState?: GameState;
   chat: ChatMessage[];
   created_at?: string;
+  drawOfferFrom?: string | null; // ID do jogador que propôs o empate
 }
 
 export interface GameSettings {
